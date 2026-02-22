@@ -1,25 +1,32 @@
-# CakePHP 3
+# Composer dependencies
+/vendor/
+composer.lock
 
-/vendor/*
-/config/app.php
+# Environment variables
+.env
+.env.local
+.env.testing
 
-/tmp/cache/models/*
-!/tmp/cache/models/empty
-/tmp/cache/persistent/*
-!/tmp/cache/persistent/empty
-/tmp/cache/views/*
-!/tmp/cache/views/empty
-/tmp/sessions/*
-!/tmp/sessions/empty
-/tmp/tests/*
-!/tmp/tests/empty
+# IDE-specific files (common ones)
+.idea/         # JetBrains IDEs (PhpStorm, etc)
+.vscode/       # VS Code (if team-wide settings are not shared)
+*.iml          # Intellij/PhpStorm project files
 
-/logs/*
-!/logs/empty
+# Build artifacts and temporary files
+/build/
+/cache/
+/log/
+*.log
+*.sql          # Database dumps
+*.sqlite
+/tmp/
 
-# CakePHP 2
+# OS and Editor generated files
+.DS_Store      # macOS
+Thumbs.db      # Windows
+ehthumbs.db    # Windows
+[Tt]humbs.db   # Windows
 
-/app/tmp/*
-/app/Config/core.php
-/app/Config/database.php
-/vendors/*
+# PHP-specific
+*.phar
+*.phpcbf
