@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'omdb' => [
+        'key' => env('OMDB_API_KEY'),
+        'base_url' => env('OMDB_BASE_URL', 'https://www.omdbapi.com/'),
+        'top_movies_ids' => array_filter(explode(',', env('OMDB_TOP_MOVIES_IDS', 'tt0111161,tt0068646,tt0071562'))),
+    ],
+
 ];
