@@ -53,7 +53,7 @@ class OmdbClient
             'page' => $options['page'] ?? 1,
         ]);
 
-        $params = array_filter($params, fn ($v) => $v !== null);
+        $params = array_filter($params, fn ($v) => $v !== null); // удаляем null значения из массива
 
         return $this->request($params);
     }

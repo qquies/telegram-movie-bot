@@ -2,18 +2,19 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\OmdbClient;
+use App\Services\OmdbClient as OmdbClientService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class OmdbClientTest extends TestCase
 {
-    protected OmdbClient $client;
+    /** @var OmdbClientService */
+    protected $client;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->client = new OmdbClient('test-api-key', 'https://www.omdbapi.com/');
+        $this->client = new OmdbClientService('test-api-key', 'https://www.omdbapi.com/');
     }
 
     public function test_search_movies_returns_results(): void
@@ -36,7 +37,7 @@ class OmdbClientTest extends TestCase
 
         $result = $this->client->searchMovies('Shawshank');
 
-        $this->assertTrue(OmdbClient::isSuccessResponse($result));
+        $this->assertTrue(OmdbClientService::isSuccessResponse($result));
         $this->assertArrayHasKey('Search', $result);
         $this->assertCount(1, $result['Search']);
         $this->assertEquals('The Shawshank Redemption', $result['Search'][0]['Title']);
@@ -54,8 +55,8 @@ class OmdbClientTest extends TestCase
 
         $result = $this->client->searchMovies('NonExistentMovie12345');
 
-        $this->assertFalse(OmdbClient::isSuccessResponse($result));
-        $this->assertEquals('Movie not found!', OmdbClient::getErrorMessage($result));
+        $this->assertFalse(OmdbClientService::isSuccessResponse($result));
+        $this->assertEquals('Movie not found!', OmdbClientService::getErrorMessage($result));
     }
 
     public function test_get_movie_details_returns_full_info(): void
@@ -78,7 +79,7 @@ class OmdbClientTest extends TestCase
 
         $result = $this->client->getMovieDetails('tt0111161');
 
-        $this->assertTrue(OmdbClient::isSuccessResponse($result));
+        $this->assertTrue(OmdbClientService::isSuccessResponse($result));
         $this->assertEquals('The Shawshank Redemption', $result['Title']);
         $this->assertEquals('1994', $result['Year']);
         $this->assertEquals('9.3', $result['imdbRating']);
@@ -96,8 +97,8 @@ class OmdbClientTest extends TestCase
 
         $result = $this->client->getMovieDetails('invalid');
 
-        $this->assertFalse(OmdbClient::isSuccessResponse($result));
-        $this->assertEquals('Incorrect IMDb ID.', OmdbClient::getErrorMessage($result));
+        $this->assertFalse(OmdbClientService::isSuccessResponse($result));
+        $this->assertEquals('Incorrect IMDb ID.', OmdbClientService::getErrorMessage($result));
     }
 
     public function test_get_movie_by_title_returns_details(): void
@@ -114,7 +115,7 @@ class OmdbClientTest extends TestCase
 
         $result = $this->client->getMovieByTitle('Inception');
 
-        $this->assertTrue(OmdbClient::isSuccessResponse($result));
+        $this->assertTrue(OmdbClientService::isSuccessResponse($result));
         $this->assertEquals('Inception', $result['Title']);
         $this->assertEquals('2010', $result['Year']);
     }

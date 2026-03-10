@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use App\Services\OmdbClient;
-use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\ServiceProvider; // класс настройки приложения Laravel
 
 class AppServiceProvider extends ServiceProvider
 {
