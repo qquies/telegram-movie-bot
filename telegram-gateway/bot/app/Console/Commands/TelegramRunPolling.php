@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
 
 class TelegramRunPolling extends Command
 {
@@ -59,16 +60,51 @@ class TelegramRunPolling extends Command
         if (isset($update['message']['text'])) {
             $chatId = $update['message']['chat']['id'];
             $text = $update['message']['text'];
-            
+            // Пытаемся достать имя пользователя из Telegram, если скрыто - ставим "Аноним"
+            $firstName = $update['message']['from']['first_name'] ?? 'Аноним';
             // Выводим в нашу консоль
             $this->info("Получено: [{$text}] от чата {$chatId}");
 
+            $replyText = "";
+
+             if ($text == '/start') {
+                $replyText = $this->handleStartCommand($chatId, $firstName);
+            } else {
+                $replyText = "Я пока понимаю только команду /start. Попробуй отправить ее!";
+            }
             // Отправляем ответ обратно пользователю через HTTP POST запрос
             $token = env('TELEGRAM_BOT_TOKEN');
             Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
                 'chat_id' => $chatId,
-                'text' => "Я получил твое сообщение: " . $text,
+                'text' => $replyText . $text,
             ]);
+
+           
+        }
+    }
+
+    private function handleStartCommand($chatId, $firstName)
+    {
+        try {
+            // SELECT * FROM "user" WHERE telegram_id = $chatId LIMIT 1;
+            // (Laravel сам подставит кавычки и защитит от SQL-иньекций)
+            $existingUser = DB::table('user')->where('telegram_id', $chatId)->first();
+
+            if ($existingUser) {
+                return "С возвращением, {$firstName}! Рад снова тебя видеть в нашем кино-боте.";
+            } else {
+                // INSERT INTO "user" (telegram_id, user_name, rank_Id) VALUES (...)
+                DB::table('user')->insert([
+                    'telegram_id' => $chatId,
+                    'user_name' => $firstName,
+                    'user_surname' => ' ', // В твоей БД это поле NOT NULL, ставим пробел как дефолт
+                    'rank_Id' => 1 // ID ранга (например, 1 - это "Новичок" из твоих CRUD-скриптов)
+                ]);
+                return "Привет, {$firstName}! Я успешно зарегистрировал тебя в базе данных.";
+            }
+        } catch (\Exception $e) {
+            $this->error("Ошибка БД: " . $e->getMessage());
+            return "Упс, проблема с базой данных. Технические неполадки.";
         }
     }
 }
