@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
+use App\Services\MovieApiClient;
 
 class TelegramRunPolling extends Command
 {
@@ -69,14 +70,17 @@ class TelegramRunPolling extends Command
 
              if ($text == '/start') {
                 $replyText = $this->handleStartCommand($chatId, $firstName);
-            } else {
+            } elseif (str_starts_with($text, '/search')){
+                $movieTitle = trim(str_replace('/search', '', $text));
+                $replyText = $this->handleSearchCommand($movieTitle);
+            }else {
                 $replyText = "Я пока понимаю только команду /start. Попробуй отправить ее!";
             }
             // Отправляем ответ обратно пользователю через HTTP POST запрос
             $token = env('TELEGRAM_BOT_TOKEN');
             Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
                 'chat_id' => $chatId,
-                'text' => $replyText . $text,
+                'text' => $replyText 
             ]);
 
            
@@ -106,5 +110,21 @@ class TelegramRunPolling extends Command
             $this->error("Ошибка БД: " . $e->getMessage());
             return "Упс, проблема с базой данных. Технические неполадки.";
         }
+    }
+
+    private function handleSearchCommand(string $movieTitle) {
+        if (empty($movieTitle)) {
+            return "Пожалуйста, укажите название фильма. Пример: /search Бетман";
+        }
+
+        $apiClient = new MovieApiClient();
+
+        $result = $apiClient->searchInImdb($movieTitle);
+
+        if ($result == null) {
+            return "🔍 Я порытался найти '{$movieTitle}', но микросервис базы фильмов (IMDb) сейчас недоступен. Товариши еще работают над ним!";
+        }
+
+        return "Ура! Я нашел фильм. Вот данные: ". json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 }
