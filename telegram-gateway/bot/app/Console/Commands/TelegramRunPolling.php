@@ -117,6 +117,20 @@ class TelegramRunPolling extends Command
             return "Пожалуйста, укажите название фильма. Пример: /search Бетман";
         }
 
+        try {
+
+            $localMovie = DB::table('product')->where('product_title', trim($movieTitle))->first();
+            if ($localMovie) {
+                return "🎬 Нашел в нашей базе.\n".
+                        "Оценка фильма на Кинопоиске: {$localMovie->user_mark_kino_poisk}\n".
+                        "Оценка фильма на IMDB: {$localMovie->user_mark_imdb}\n".
+                        "Наша оценка фильма: {$localMovie->user_mark_our}\n".
+                        "Бюджет: {$localMovie->budget} $";
+            } 
+        }catch (\Exception $e) {
+            $this->error("Ошибка чтения БД: " . $e->getMessage());
+        }
+
         $apiClient = new MovieApiClient();
 
         $result = $apiClient->searchInImdb($movieTitle);
@@ -125,6 +139,6 @@ class TelegramRunPolling extends Command
             return "🔍 Я порытался найти '{$movieTitle}', но микросервис базы фильмов (IMDb) сейчас недоступен. Товариши еще работают над ним!";
         }
 
-        return "Ура! Я нашел фильм. Вот данные: ". json_encode($result, JSON_UNESCAPED_UNICODE);
+        return "🌐 Нашел в интернете (через API)! Вот данные: ". json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 }
