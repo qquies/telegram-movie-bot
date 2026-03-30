@@ -57,6 +57,85 @@ class TelegramRunPolling extends Command
     // Функция обработки одного конкретного сообщения
     private function processUpdate($update)
     {
+        $token = env('TELEGRAM_BOT_TOKEN');
+        
+        // Перехват прерывания: Если пришло нажатие на Inline-кнопку
+        if (isset($update['callback_query'])) {
+            $callback = $update['callback_query'];
+            $chatId = $callback['message']['chat']['id'];
+            $data = $callback['data'];
+            $callbackId = $callback['id'];
+            
+            $parts = explode('_', $data);
+            $action = $parts[0];
+
+            if ($action == 'rate' && isset($parts[1])) {
+                $productId = $parts[1];
+
+                Http::post("https://api.telegram.org/bot{$token}/sendMessage",[
+                    'chat_id' => $chatId,
+                    'text' => "Выбери оценку от 1 до 5:",
+                    'reply_markup' => json_encode([
+                        'inline_keyboard' => [
+                            [
+                                ['text' => '1', 'callback_data' => "mark_1_{$productId}"],
+                                ['text' => '2', 'callback_data' => "mark_2_{$productId}"],
+                                ['text' => '3', 'callback_data' => "mark_3_{$productId}"],
+                                ['text' => '4', 'callback_data' => "mark_4_{$productId}"],
+                                ['text' => '5', 'callback_data' => "mark_5_{$productId}"],
+
+                            ]
+                        ]
+                    ])
+                ]);
+            }
+            
+            elseif ($action == 'mark' && isset($parts[1]) && isset($parts[2])) {
+                $score = $parts[1];
+                $productId = $parts[2];
+
+                $user = DB::table('user')->where('telegram_id', $chatId)->first();
+
+                if ($user) {
+                    DB::table('review')->updateOrinsert([
+                        'user_id' => $user->user_id ,
+                        'product_id' => $productId
+                    ],
+                    [
+                        'review_title' => '',
+                        'review_mark' => $score
+                    ]);
+
+                    $avg_mark =  round(DB::table('review')
+                                    ->where('product_id', $productId)
+                                    ->avg('review_mark'), 1);
+
+                            
+                    DB::table('product')
+                        ->where('product_id', $productId)
+                        ->update([
+                            'user_mark_our' => $avg_mark
+                        ]);
+
+
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => "✅ Спасибо! Твоя оценка {$score} успешно сохранена в базу данных.",  
+                    ]);
+                    
+
+                } else {
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => "❌ ошибка: я не нашел тебя в базе пользователей. Напиши \start",  
+                    ]);
+                }
+            }
+
+            Http::post("https://api.telegram.org/bot{$token}/answerCallbackQuery", [
+                'callback_query_id' => $callbackId
+            ]);
+        }
         // Проверяем, что нам прислали именно текст, а не стикер или фото
         if (isset($update['message']['text'])) {
             $chatId = $update['message']['chat']['id'];
@@ -77,13 +156,25 @@ class TelegramRunPolling extends Command
                 $replyText = "Я пока понимаю только команду /start. Попробуй отправить ее!";
             }
             // Отправляем ответ обратно пользователю через HTTP POST запрос
-            $token = env('TELEGRAM_BOT_TOKEN');
-            Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                'chat_id' => $chatId,
-                'text' => $replyText 
-            ]);
 
-           
+            $payload = [
+                'chat_id' => $chatId,
+                'text' => $replyText,  
+            ];
+
+            if (str_starts_with($replyText, '🎬 Нашел в нашей базе.')) {
+                $localMovie = DB::table('product')->where('product_title', trim($movieTitle))->first();
+                $keyboard = [
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '⭐ Оценить фильм', 'callback_data' => 'rate_'.$localMovie->product_id]
+                        ]
+                    ]
+                ];
+                $payload['reply_markup'] = json_encode($keyboard);
+            }
+            Http::post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
+        
         }
     }
 
@@ -124,7 +215,7 @@ class TelegramRunPolling extends Command
                 return "🎬 Нашел в нашей базе.\n".
                         "Оценка фильма на Кинопоиске: {$localMovie->user_mark_kino_poisk}\n".
                         "Оценка фильма на IMDB: {$localMovie->user_mark_imdb}\n".
-                        "Наша оценка фильма: {$localMovie->user_mark_our}\n".
+                        "Наша оценка фильма: {$localMovie->user_mark_our}⭐\n".
                         "Бюджет: {$localMovie->budget} $";
             } 
         }catch (\Exception $e) {
