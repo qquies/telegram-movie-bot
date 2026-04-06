@@ -167,6 +167,31 @@ class TelegramRunPolling extends Command
             // Выводим в нашу консоль
             $this->info("Получено: [{$text}] от чата {$chatId}");
 
+
+            $user = DB::table('user')->where('telegram_id', $chatId)->first();
+
+            if ($user && $user->current_state != null && str_starts_with($user->current_state, 'review_')) {
+                $productId = str_replace('review_', '', $user->current_state);
+
+                DB::table('review')->updateOrInsert(
+                    [
+                        'user_id' => $user->user_id,
+                        'product_id' => $productId
+                    ],
+                    [
+                        'review_title' => $text
+                    ]
+                );
+
+                DB::table('user')->where('telegram_id', $chatId)->update([
+                    'current_state' => null
+                ]);
+                Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => "✅ Твой текстовый отзыв успешно сохранен! Можешь искать следующий фильм",  
+                    ]);
+                return;
+            }
             $replyText = "";
 
              if ($text == '/start') {
