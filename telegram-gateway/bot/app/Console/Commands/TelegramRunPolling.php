@@ -29,8 +29,7 @@ class TelegramRunPolling extends Command
         // Наш классический суперцикл
         while (true) {
             try {
-                // Делаем HTTP GET запрос к Telegram. timeout=20 означает, что соединение
-                // будет висеть открытым 20 секунд в ожидании новых сообщений (Long Polling)
+
                 $response = Http::timeout(30)->get("https://api.telegram.org/bot{$token}/getUpdates", [
                     'offset' => $offset,
                     'timeout' => 20, 
@@ -175,6 +174,19 @@ class TelegramRunPolling extends Command
                     'parse_mode' => 'HTML'
                 ]);
             }
+            elseif ($action == 'read' && isset($parts[1])) {
+                $productId = $parts[1];
+                $update = DB::table('user')->where('telegram_id', $chatId)->update([
+                    'current_state' => 'read_amount_' . $productId
+                ]);
+
+                if ($update) {
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                        'chat_id' => $chatId,
+                        'text' => "🔢 Сколько топовых отзывов ты хочешь прочитать? Введи число (например: 3, 5 или 10):"
+                    ]);
+                }
+            }
 
             Http::post("https://api.telegram.org/bot{$token}/answerCallbackQuery", [
                 'callback_query_id' => $callbackId
@@ -214,21 +226,106 @@ class TelegramRunPolling extends Command
                     ]);
                 return;
             }
+
+            if ($user && $user->current_state != null && str_starts_with($user->current_state, 'read_amount_')) {
+                $productId = str_replace('read_amount_', '', $user->current_state);
+
+                // Защита от "дурака" (Валидация типов данных)
+                // Если юзер ввел не число (а например слово "пять")
+                if (!is_numeric($text) || $text <= 0) {
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                        'chat_id' => $chatId,
+                        'text' => "⚠️ Пожалуйста, введи корректное целое число больше нуля (например, 3)."
+                    ]);
+                    return; // Выходим, состояние НЕ сбрасываем, ждем дальше
+                }
+
+                $limitN = (int)$text; // Приводим к целому числу (кастуем тип)
+
+                // Тот самый сложный и крутой SQL-запрос
+                $reviews = DB::table('review as r')
+                    ->join('user as u', 'r.user_id', '=', 'u.user_id')
+                    ->join('rank as ra', 'u.rank_Id', '=', 'ra.rank_id')
+                    ->select(
+                        'r.review_title', 
+                        'r.review_mark', 
+                        'ra.rank_title',
+                        DB::raw('(SELECT count(*) FROM review WHERE user_id = u.user_id) as total_reviews')
+                    )
+                    ->where('r.product_id', $productId)
+                    ->whereNotNull('r.review_title')
+                    ->where('r.review_title', '!=', '')
+                    ->orderByDesc('total_reviews')
+                    ->limit($limitN) // Используем число, которое ввел юзер!
+                    ->get();
+
+                if ($reviews->isEmpty()) {
+                    $responseText = "🤷‍♂️ Для этого фильма пока нет текстовых отзывов.";
+                } else {
+                    $responseText = "💬 <b>Топ-{$limitN} отзывов от активных зрителей:</b>\n\n";
+                    foreach ($reviews as $rev) {
+                        $responseText .= "👤 <b>{$rev->rank_title}</b> (Всего отзывов: {$rev->total_reviews})\n";
+                        $responseText .= "Оценка: {$rev->review_mark}/5 ⭐\n";
+                        $responseText .= "📝 <i>«{$rev->review_title}»</i>\n";
+                        $responseText .= "➖➖➖➖➖➖➖➖\n";
+                    }
+                }
+
+                // СБРОС СОСТОЯНИЯ: Возвращаем пользователя в обычный режим
+                DB::table('user')->where('telegram_id', $chatId)->update([
+                    'current_state' => null
+                ]);
+
+                Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => $responseText,
+                    'parse_mode' => 'HTML'
+                ]);
+
+                return; // Текст обработан, выходим из цикла
+            }
             $replyText = "";
 
-             if ($text == '/start') {
+             // Парсим входящий буфер: проверяем префиксы команд
+            if (str_starts_with($text, '/start')) {
                 $replyText = $this->handleStartCommand($chatId, $firstName);
-            } elseif (str_starts_with($text, '/search')){
-                $movieTitle = trim(str_replace('/search', '', $text));
+                
+            } elseif (str_starts_with($text, '/search')) {
+                $movieTitle = trim(str_replace(['/search - Искать фильм', '/search'], '', $text));
                 $replyText = $this->handleSearchCommand($movieTitle);
-            }else {
-                $replyText = "Я пока понимаю только команду /start. Попробуй отправить ее!";
+                
+            } elseif (str_starts_with($text, '/director')) {
+                $directorName = trim(str_replace(['/director - По режиссерам', '/director'], '', $text));
+                $replyText = $this->handleDirectorCommand($directorName);
+                
+            } elseif (str_starts_with($text, '/studio')) {
+                $studioName = trim(str_replace(['/studio - По студиям', '/studio'], '', $text));
+                $replyText = $this->handleStudioCommand($studioName);
+                
+            } elseif (str_starts_with($text, '/awards')) {
+                $movieTitle = trim(str_replace(['/awards - Награды фильмов', '/awards'], '', $text));
+                $replyText = $this->handleAwardsCommand($movieTitle);
+                
+            } elseif (str_starts_with($text, '/status')) {
+                $replyText = $this->handleStatusCommand($chatId);
+                
+            } elseif (str_starts_with($text, '/my_reviews')) {
+                $replyText = $this->handleMyReviewsCommand($chatId);
+                
+            } elseif (str_starts_with($text, '/find_review')) {
+                $movieTitle = trim(str_replace(['/find_review - Найти отзыв', '/find_review'], '', $text));
+                $replyText = $this->handleFindReviewCommand($chatId, $movieTitle);
+                
+            } else {
+                $replyText = "Я не распознал команду. Воспользуйся меню внизу экрана или напиши /start";
             }
             // Отправляем ответ обратно пользователю через HTTP POST запрос
             
             $payload = [
                 'chat_id' => $chatId,
                 'text' => $replyText,  
+                
+                    'parse_mode' => 'HTML'
             ];
 
             $mainMenu = [
@@ -253,6 +350,9 @@ class TelegramRunPolling extends Command
                         ],
                         [
                             ['text' => '💡 Интересный факт', 'callback_data' => 'fact_'.$localMovie->product_id]
+                        ],
+                        [
+                            ['text' => '👀 Читать отзывы (Топ)', 'callback_data' => 'read_'.$localMovie->product_id]
                         ]
                     ]
                 ];
@@ -296,28 +396,136 @@ class TelegramRunPolling extends Command
             return "Пожалуйста, укажите название фильма. Пример: /search Бетман";
         }
 
-        try {
+        $localMovie = DB::table('product')->where('product_title', trim($movieTitle))->first();
+        
+        $needsApiUpdate = true; 
 
-            $localMovie = DB::table('product')->where('product_title', trim($movieTitle))->first();
-            if ($localMovie) {
-                return "🎬 Нашел в нашей базе.\n".
-                        "Оценка фильма на Кинопоиске: {$localMovie->user_mark_kino_poisk}\n".
-                        "Оценка фильма на IMDB: {$localMovie->user_mark_imdb}\n".
-                        "Наша оценка фильма: {$localMovie->user_mark_our}⭐\n".
-                        "Бюджет: {$localMovie->budget} $";
-            } 
-        }catch (\Exception $e) {
-            $this->error("Ошибка чтения БД: " . $e->getMessage());
+        if ($localMovie) {
+            $lastUpdate = Carbon::parse($localMovie->date_of_update);
+            
+            if ($lastUpdate->diffInDays(now()) < 7) {
+                $needsApiUpdate = false; // Отменяем поход в сеть
+                
+                return "🎬 Нашел в нашей базе (Данные актуальны).\n".
+                       "Оценка Кинопоиска: {$localMovie->user_mark_kino_poisk}\n".
+                       "Оценка IMDB: {$localMovie->user_mark_imdb}\n".
+                       "Наша оценка: {$localMovie->user_mark_our}⭐\n".
+                       "Бюджет: {$localMovie->budget} $";
+            } else {
+                $this->info("Данные устарели (прошло более 7 дней). Идем в API...");
+            }
         }
 
-        $apiClient = new MovieApiClient();
-
-        $result = $apiClient->searchInImdb($movieTitle);
-
-        if ($result == null) {
-            return "🔍 Я порытался найти '{$movieTitle}', но микросервис базы фильмов (IMDb) сейчас недоступен. Товариши еще работают над ним!";
+        // Если фильма нет ИЛИ он устарел — идём в API товарищей
+        if ($needsApiUpdate) {
+            return $this->fetchAndParseApiData($movieTitle, $localMovie);
         }
+    }
 
-        return "🌐 Нашел в интернете (через API)! Вот данные: ". json_encode($result, JSON_UNESCAPED_UNICODE);
+    private function handleDirectorCommand(string $dir_data) {
+        $dir_data_sp =explode(' ', $dir_data);
+        $name = $dir_data_sp[0];
+        $surname = $dir_data_sp[1];
+        if (empty($name)) return "Укажи фамилию  имя режиссера. Пример: /director Кристофер Нолан";
+        if (empty($surname)) return "Укажи фамилию  имя режиссера. Пример: /director Кристофер Нолан";
+        // SELECT product_title FROM product JOIN director ON ... WHERE name ILIKE %...%
+        // ILIKE в PostgreSQL ищет без учета регистра букв
+        
+        $movies = DB::table('product')
+            ->join('director', 'product.director_id', '=', 'director.director_id')
+            ->where('director.director_surname', 'ILIKE', "%{$surname}%")
+            ->orWhere('director.director_name', 'ILIKE', "%{$name}%")
+            ->pluck('product.product_title'); // pluck вытаскивает только одну колонку в массив
+
+        if ($movies->isEmpty()) return "К сожалению, я не нашел фильмов этого режиссера в базе.";
+        return "🎬 <b>Фильмы режиссера '{$dir_data}':</b>\n\n- " . $movies->implode("\n- ");
+    }
+
+    private function handleStudioCommand(string $name) {
+        if (empty($name)) return "Укажи название студии. Пример: /studio Warner Bros";
+        
+        $movies = DB::table('product')
+            ->join('studio', 'product.studio_id', '=', 'studio.studio_id')
+            ->where('studio.studio_title', 'ILIKE', "%{$name}%")
+            ->pluck('product.product_title');
+
+        if ($movies->isEmpty()) return "Не нашел фильмов от студии '{$name}'.";
+        return "🎥 <b>Фильмы студии '{$name}':</b>\n\n- " . $movies->implode("\n- ");
+    }
+
+    private function handleAwardsCommand(string $title) {
+        if (empty($title)) return "Укажи название фильма. Пример: /awards Матрица";
+
+        $awards = DB::table('reward')
+            ->join('reward_product_conection', 'reward.reward_id', '=', 'reward_product_conection.reward_id')
+            ->join('product', 'reward_product_conection.product_id', '=', 'product.product_id')
+            ->where('product.product_title', 'ILIKE', "%{$title}%")
+            ->select('reward.reward_category', 'reward.reward_title')
+            ->get();
+
+        if ($awards->isEmpty()) return "Для фильма '{$title}' в базе нет наград.";
+        
+        $text = "🏆 <b>Награды фильма '{$title}':</b>\n\n";
+        foreach ($awards as $award) {
+            $text .= "🔸 {$award->reward_category}: {$award->reward_title}\n";
+        }
+        return $text;
+    }
+
+    private function handleStatusCommand($chatId) {
+        $user = DB::table('user')
+            ->join('rank', 'user.rank_Id', '=', 'rank.rank_id')
+            ->where('telegram_id', $chatId)
+            ->select('user.user_name', 'user.user_id', 'rank.rank_title')
+            ->first();
+
+        if (!$user) return "Я тебя не знаю. Напиши /start";
+
+        $reviewCount = DB::table('review')->where('user_id', $user->user_id)->count();
+
+        return "📊 <b>Твой статус, {$user->user_name}:</b>\n\n".
+               "🎖 Текущий ранг: <b>{$user->rank_title}</b>\n".
+               "📝 Написано отзывов: <b>{$reviewCount}</b>";
+    }
+
+    private function handleMyReviewsCommand($chatId) {
+        $user = DB::table('user')->where('telegram_id', $chatId)->first();
+        if (!$user) return "Напиши /start";
+
+        $reviews = DB::table('review')
+            ->join('product', 'review.product_id', '=', 'product.product_id')
+            ->where('review.user_id', $user->user_id)
+            ->whereNotNull('review.review_title')
+            ->where('review.review_title', '!=', '')
+            ->orderBy('review.date_of_update', 'desc')
+            ->get();
+
+        if ($reviews->isEmpty()) return "Ты еще не написал ни одного отзыва!";
+
+        $text = "📝 <b>Твои отзывы:</b>\n\n";
+        foreach ($reviews as $rev) {
+            $text .= "🎬 <b>{$rev->product_title}</b> ({$rev->review_mark}/5 ⭐)\n";
+            $text .= "<i>«{$rev->review_title}»</i>\n➖➖➖➖➖➖\n";
+        }
+        return $text;
+    }
+
+    private function handleFindReviewCommand($chatId, $title) {
+        if (empty($title)) return "Укажи фильм, отзыв на который хочешь найти. Пример: /find_review Матрица";
+
+        $user = DB::table('user')->where('telegram_id', $chatId)->first();
+        if (!$user) return "Напиши /start";
+
+        $review = DB::table('review')
+            ->join('product', 'review.product_id', '=', 'product.product_id')
+            ->where('review.user_id', $user->user_id)
+            ->where('product.product_title', 'ILIKE', "%{$title}%")
+            ->first();
+
+        if (!$review) return "Ты не оставлял отзыв на фильм '{$title}'.";
+
+        return "🔍 <b>Твой отзыв на «{$review->product_title}»:</b>\n\n".
+               "Оценка: {$review->review_mark}/5 ⭐\n".
+               "Текст: <i>{$review->review_title}</i>";
     }
 }
