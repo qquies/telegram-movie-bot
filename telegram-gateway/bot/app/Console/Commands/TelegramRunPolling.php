@@ -132,6 +132,28 @@ class TelegramRunPolling extends Command
                 }
             }
 
+            elseif ($action == 'write' && isset($parts[1])) {
+                $productId = $parts[1];
+
+                $update = DB::table('user')
+                    ->where('telegram_id', $chatId)
+                    ->update([
+                        'current_state' => 'review_' . $productId
+                    ]);
+
+                if ($update) {
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                        'chat_id' => $chatId,
+                        'text' => "📝 Отлично! Отправь мне текст своего отзыва на этот фильм следующим сообщением:"
+                    ]);
+                } else {
+                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => "❌ ошибка: я не нашел тебя в базе пользователей. Напиши \start",  
+                    ]);
+                }
+            }
+
             Http::post("https://api.telegram.org/bot{$token}/answerCallbackQuery", [
                 'callback_query_id' => $callbackId
             ]);
@@ -168,6 +190,9 @@ class TelegramRunPolling extends Command
                     'inline_keyboard' => [
                         [
                             ['text' => '⭐ Оценить фильм', 'callback_data' => 'rate_'.$localMovie->product_id]
+                        ],
+                        [
+                            ['text' => '📝 Написать отзыв', 'callback_data' => 'write_'.$localMovie->product_id]
                         ]
                     ]
                 ];
