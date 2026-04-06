@@ -124,7 +124,8 @@ class TelegramRunPolling extends Command
                     ]);
                     
 
-                } else {
+                } 
+                else {
                     Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
                     'chat_id' => $chatId,
                     'text' => "❌ ошибка: я не нашел тебя в базе пользователей. Напиши \start",  
@@ -152,6 +153,27 @@ class TelegramRunPolling extends Command
                     'text' => "❌ ошибка: я не нашел тебя в базе пользователей. Напиши \start",  
                     ]);
                 }
+            }
+
+            elseif ($action == 'fact' && isset($parts[1])) {
+                $productId = $parts[1];
+
+                $fact = DB::table('product_fact')
+                            ->where('product_id', $productId)
+                            ->inRandomOrder()
+                            ->first();
+                if ($fact) {
+                    $responseText = "💡 <b>А ты знал?</b>\n\n" . $fact->fact_text;
+                }
+                else
+                {
+                    $responseText = "🤷‍♂️ Для этого фильма в базе пока нет интересных фактов. Мы их скоро добавим!";
+                }
+                Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => $responseText,
+                    'parse_mode' => 'HTML'
+                ]);
             }
 
             Http::post("https://api.telegram.org/bot{$token}/answerCallbackQuery", [
@@ -203,12 +225,22 @@ class TelegramRunPolling extends Command
                 $replyText = "Я пока понимаю только команду /start. Попробуй отправить ее!";
             }
             // Отправляем ответ обратно пользователю через HTTP POST запрос
-
+            
             $payload = [
                 'chat_id' => $chatId,
                 'text' => $replyText,  
             ];
 
+            $mainMenu = [
+                    'keyboard' => [
+                        [['text' => '/start - Главное меню'], ['text' => '/search - Искать фильм']],
+                        [['text' => '/director - По режиссерам'], ['text' => '/studio - По студиям']],
+                        [['text' => '/awards - Награды фильмов'], ['text' => '/status - Мой рейтинг']],
+                        [['text' => '/my_reviews - Мои отзывы'], ['text' => '/find_review - Найти отзыв']],
+                    ],
+                    'resize_keyboard' => true,
+                    'is_persistent' => true
+            ];
             if (str_starts_with($replyText, '🎬 Нашел в нашей базе.')) {
                 $localMovie = DB::table('product')->where('product_title', trim($movieTitle))->first();
                 $keyboard = [
@@ -218,10 +250,16 @@ class TelegramRunPolling extends Command
                         ],
                         [
                             ['text' => '📝 Написать отзыв', 'callback_data' => 'write_'.$localMovie->product_id]
+                        ],
+                        [
+                            ['text' => '💡 Интересный факт', 'callback_data' => 'fact_'.$localMovie->product_id]
                         ]
                     ]
                 ];
                 $payload['reply_markup'] = json_encode($keyboard);
+            }
+            else {
+                $payload['reply_markup'] = json_encode($mainMenu);
             }
             Http::post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
         
