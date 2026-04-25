@@ -31,7 +31,7 @@ return [
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+            'channel' => env('SLACK_BOT_USER_DEFAUxLT_CHANNEL'),
         ],
     ],
 
@@ -39,6 +39,12 @@ return [
         'key' => env('OMDB_API_KEY'),
         'base_url' => env('OMDB_BASE_URL', 'https://www.omdbapi.com/'),
         'top_movies_ids' => array_filter(explode(',', env('OMDB_TOP_MOVIES_IDS', 'tt0111161,tt0068646,tt0071562'))),
+        'cache_store' => env('OMDB_CACHE_STORE'),
+        'cache_ttl' => [
+            'search' => (int) env('OMDB_CACHE_TTL_SEARCH', 3600),
+            'movie' => (int) env('OMDB_CACHE_TTL_MOVIE', 86400),
+            'tops' => (int) env('OMDB_CACHE_TTL_TOPS', 3600),
+        ],
     ],
 
 ];
