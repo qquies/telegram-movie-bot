@@ -28,11 +28,11 @@ class MovieApiClient
 
     public function searchInKinopoisk(string $title)
     {
-        $baseUrl = env('KINOPOISK_SERVICE_URL');
+        $baseUrl = 'http://localhost:8001';
 
         try {
-            $response = Http::timeout(3)->get("{$baseUrl}/api/search", [
-                'movie' => $title
+            $response = Http::timeout(15)->get("{$baseUrl}/api/movies/search", [
+                'query' => $title
             ]);
 
             if ($response->successful()) {

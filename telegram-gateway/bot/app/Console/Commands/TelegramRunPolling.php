@@ -412,7 +412,7 @@ class TelegramRunPolling extends Command
                 $needsApiUpdate = false; 
                 
                 // Формируем расширенный и красивый ответ
-                $reply = "🎬 <b>{$localMovie->product_title}</b>\n\n";
+                $reply = "🎬 Нашел в нашей базе.\n <b>{$localMovie->product_title}</b>\n\n";
                 if ($localMovie->poster_link) {
                     $reply .= "🖼 <a href='{$localMovie->poster_link}'>Постер к фильму</a>\n";
                 }
