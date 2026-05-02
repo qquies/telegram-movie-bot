@@ -13,7 +13,7 @@ class MovieApiClient
 
         try {
             $response = Http::timeout(3)->get("{$baseUrl}/api/search", [
-                'movie' => $title
+                'q' => $title
             ]);
 
             if ($response->successful()) {
@@ -28,7 +28,7 @@ class MovieApiClient
 
     public function searchInKinopoisk(string $title)
     {
-        $baseUrl = 'http://localhost:8001';
+        $baseUrl = env('KINOPOISK_SERVICE_URL');
 
         try {
             $response = Http::timeout(15)->get("{$baseUrl}/api/movies/search", [
@@ -41,6 +41,24 @@ class MovieApiClient
             return null;
         } catch (\Exception $e) {
             Log::error("Ошибка связи с микросервисом Кинопоиска:".$e->getMessage());
+            return null;
+        }
+    }
+
+    public function getImdbMovieById(string $imdbId)
+    {
+        $baseUrl = env('IMDB_SERVICE_URL');
+
+        try {
+            // Делаем запрос по ID
+            $response = Http::timeout(15)->get("{$baseUrl}/api/movies/{$imdbId}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+            return null;
+        } catch (\Exception $e) {
+            Log::error("Ошибка связи с IMDb (по ID): " . $e->getMessage());
             return null;
         }
     }
