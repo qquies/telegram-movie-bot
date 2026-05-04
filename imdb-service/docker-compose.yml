@@ -1,0 +1,63 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imdb-service-app
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: base64:V4unN/m+p+4d0gNDqNV2P7wWwJz3fWuxk0qBavh8nLE=
+      APP_URL: http://localhost:8000
+      CACHE_STORE: redis
+      OMDB_CACHE_STORE: redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+      OMDB_API_KEY: ${OMDB_API_KEY:-}
+      OMDB_BASE_URL: ${OMDB_BASE_URL:-https://www.omdbapi.com/}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: imdb-service-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imdb-service-test
+    command: ["php", "artisan", "test", "--testsuite=Integration"]
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "true"
+      APP_KEY: base64:V4unN/m+p+4d0gNDqNV2P7wWwJz3fWuxk0qBavh8nLE=
+      CACHE_STORE: redis
+      OMDB_CACHE_STORE: redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - test
+
+volumes:
+  redis_data:
