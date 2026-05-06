@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  telegram_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - db
+    command: sh -c "php artisan migrate --force && php artisan telegram:poll"
+    networks:
+      - cinema_network
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-Cinema_bd}
+      POSTGRES_USER: ${DB_USERNAME:-telecont}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Savitar2066@@}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cinema_network
+
+  kinopoisk_api:
+    image: php:8.2-cli
+    container_name: kinopoisk_api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    networks:
+      - cinema_network
+
+  imdb_api:
+    image: php:8.2-cli
+    container_name: imdb_api
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    networks:
+      - cinema_network
+
+networks:
+  cinema_network:
+    driver: bridge
+
+volumes:
+  pgdata:

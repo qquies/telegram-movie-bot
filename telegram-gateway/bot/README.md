@@ -1,58 +1,79 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🎬 Telegram Movie Bot (Микросервисная архитектура)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+[cite_start]Этот проект представляет собой продвинутого Telegram-бота на базе фреймворка **Laravel**, который агрегирует данные о фильмах из различных источников (Кинопоиск и IMDb/OMDb), предоставляет систему рейтингов и пользовательских отзывов[cite: 1]. 
 
-## About Laravel
+[cite_start]Проект полностью контейнеризирован с помощью **Docker** для обеспечения быстрой и стабильной работы всей инфраструктуры[cite: 1].
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🏗 Архитектура системы
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+[cite_start]Бот построен по принципу микросервисов, где каждый компонент изолирован и выполняет свою задачу[cite: 1]:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+1.  **Bot Service (Laravel 12 + PHP 8.4):** Ядро системы. [cite_start]Обрабатывает сообщения пользователей через Long Polling, управляет логикой команд и взаимодействует с базой данных[cite: 1, 2].
+2.  [cite_start]**Database (PostgreSQL 17):** Основное хранилище данных о пользователях, фильмах, жанрах, режиссерах и отзывах[cite: 1].
+3.  [cite_start]**Kinopoisk Service:** Микросервис для поиска данных в базе Кинопоиска с собственным кэшем Redis[cite: 1].
+4.  **IMDb Service:** Микросервис для получения детальной информации и наград из базы IMDb (OMDb) с выделенным Redis.
+5.  [cite_start]**Redis Cache:** Используется каждым микросервисом отдельно для ускорения работы и экономии лимитов API[cite: 1].
+6.  **Redis Commander:** Веб-интерфейс для мониторинга закэшированных данных.
 
-## Learning Laravel
+## 🌟 Функциональные возможности
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 🔍 Поиск и Агрегация
+* **Гибридный поиск:** Бот одновременно запрашивает данные у Кинопоиска и IMDb.
+* **Автоматический парсинг:** Сбор бюджетов, постеров, режиссеров, жанров и наград напрямую в локальную базу данных.
+* **Интеллектуальное обновление:** Если данные о фильме в базе старше 7 дней, бот автоматически обновляет их через API.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### ✍️ Социальное взаимодействие
+* **Система оценок:** Возможность поставить фильму от 1 до 5 звезд через интерактивные кнопки.
+* **Текстовые отзывы:** Полноценная запись и хранение рецензий пользователей.
+* **Ранги пользователей:** Игровая механика — чем больше отзывов пишет пользователь, тем выше его ранг (например, «Новичок», «Киноман» и т.д.).
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### 📊 Поиск по параметрам
+* Поиск фильмов по **режиссеру** (`/director`) или **студии** (`/studio`).
+* Просмотр списка **наград** фильма (`/awards`).
+* Чтение **топ-отзывов** от других пользователей с настройкой количества выводимых записей.
 
-## Agentic Development
+## 🚀 Быстрый старт
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 1. Требования
+* Docker и Docker Compose.
+* Токен бота от [@BotFather](https://t.me/botfather).
+* API ключи для Kinopoisk и OMDb.
 
-```bash
-composer require laravel/boost --dev
+### 2. Настройка окружения
+[cite_start]В корневой папке проекта создайте файл `.env` для бота на основе предоставленного примера[cite: 1]:
 
-php artisan boost:install
+```env
+TELEGRAM_BOT_TOKEN=ваш_токен
+DB_CONNECTION=pgsql
+DB_HOST=db
+DB_DATABASE=Cinema_bd
+DB_USERNAME=telecont
+DB_PASSWORD=Savitar2066@@
+
+# Ссылки на внутренние сервисы Docker
+IMDB_SERVICE_URL=http://imdb_api:8000
+KINOPOISK_SERVICE_URL=http://kinopoisk_api:80
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 3. Запуск
+[cite_start]Выполните одну команду в терминале[cite: 1]:
+```bash
+docker compose up -d --build
+```
+[cite_start]*Docker автоматически поднимет базу данных, применит SQL-дамп из `init.sql`, накатит миграции Laravel и запустит бота в режиме ожидания сообщений[cite: 1].*
 
-## Contributing
+## 🛠 Командный справочник
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+* `/start` — Запуск бота и регистрация в системе.
+* `/search [название]` — Поиск фильма и вывод его карточки.
+* `/status` — Информация о вашем ранге и количестве отзывов.
+* `/my_reviews` — Список всех ваших рецензий.
+* `/director [имя]` — Фильмография режиссера из локальной базы.
+* `/awards [фильм]` — Список наград и номинаций фильма.
 
-## Code of Conduct
+## 💻 Технологический стек
+* [cite_start]**Языки:** PHP 8.4, SQL[cite: 2].
+* [cite_start]**Фреймворк:** Laravel 12 (Core)[cite: 2].
+* [cite_start]**СУБД:** PostgreSQL 17, Redis 7[cite: 1].
+* [cite_start]**DevOps:** Docker, Docker Compose[cite: 1].
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
