@@ -1,4 +1,3 @@
-```markdown
 # Kinopoisk REST API Service
 
 [![PHP Version](https://img.shields.io/badge/PHP-8.0%2B-blue.svg)](https://php.net)
