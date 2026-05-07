@@ -3,7 +3,7 @@
 namespace Tests\Unit;
 
 use Tests\TestCase;
-use App\Console\Commands\TelegramRunPolling;
+use App\Services\MovieParserService; 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -17,31 +17,42 @@ class MovieParserTest extends TestCase
     {
         // 1. НАСТРОЙКА (Arrange): Создаем фейковые ответы от микросервисов
        Http::fake([
-            '*' => Http::sequence()
-                ->push([
-                    'Title' => 'Inception',
-                    'imdbRating' => '8.8',
-                    'Director' => 'Christopher Nolan',
-                    'Production' => 'Warner Bros.',
-                    'Country' => 'USA' 
-                ], 200)
-                ->push([
-                    'success' => true,
-                    'data' => [
-                        'docs' => [
-                            [
-                                'name' => 'Начало',
-                                'rating' => ['kp' => 8.671],
-                                'genres' => [['name' => 'фантастика']],
-                                'poster' => ['url' => 'https://fake-url.com/poster.jpg']
-                            ]
+        '*' => Http::sequence()
+            // 1-й запрос: searchInImdb -> возвращает структуру поиска
+            ->push([
+                'Search' => [
+                    ['imdbID' => 'tt1375666']   // ID фильма "Inception"
+                ]
+            ], 200)
+            // 2-й запрос: searchInKinopoisk -> оставляем как было
+            ->push([
+                'success' => true,
+                'data' => [
+                    'docs' => [
+                        [
+                            'name' => 'Начало',
+                            'rating' => ['kp' => 8.671],
+                            'genres' => [['name' => 'фантастика']],
+                            'poster' => ['url' => 'https://fake-url.com/poster.jpg']
                         ]
                     ]
-                ], 200)
+                ]
+            ], 200)
+            // 3-й запрос: getImdbMovieById -> детальная информация
+            ->push([
+                'Title'    => 'Inception',
+                'imdbRating' => '8.8',
+                'Director' => 'Christopher Nolan',
+                'Production' => 'Warner Bros.',
+                'Country'  => 'USA',
+                'Awards'   => 'Won 4 Oscars',
+                'BoxOffice' => '$292,576,195',
+                'Poster'   => 'https://fake-url.com/poster.jpg'
+            ], 200),
         ]);
 
 
-        $command = new TelegramRunPolling();
+        $command = new MovieParserService();
         $command->fetchAndParseApiData('Начало', null);
 
 

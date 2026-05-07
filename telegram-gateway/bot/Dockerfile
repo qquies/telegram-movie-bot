@@ -14,6 +14,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN composer install --no-interaction --optimize-autoloader --no-dev
+RUN composer install --no-interaction --optimize-autoloader
 
 RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache
